@@ -83,46 +83,74 @@ async function getDeviceIdentity(){
 }
 
 // ---------------- GEO LOCATION ----------------
-async function getLocation(){
+async function getLocation() {
 
-    // 1. GPS (requires permission)
-    if("geolocation" in navigator){
-        try{
-            const pos=await new Promise((res,rej)=>{
-                navigator.geolocation.getCurrentPosition(res,rej,{
-                    enableHighAccuracy:true,
-                    timeout:5000,
-                    maximumAge:60000
-                });
+    const providers = [
+        {
+            name: "ipapi",
+            url: "https://ipapi.co/json/",
+            parse: d => ({
+                lat: d.latitude,
+                lon: d.longitude,
+                city: d.city,
+                isp: d.org
+            })
+        },
+        {
+            name: "ipwhois",
+            url: "https://ipwho.is/",
+            parse: d => ({
+                lat: d.latitude,
+                lon: d.longitude,
+                city: d.city,
+                isp: d.connection?.isp
+            })
+        },
+        {
+            name: "ipinfo",
+            url: "https://ipinfo.io/json",
+            parse: d => {
+                const [lat, lon] = (d.loc || "").split(",");
+                return {
+                    lat,
+                    lon,
+                    city: d.city,
+                    isp: d.org
+                };
+            }
+        }
+    ];
+
+    for (const provider of providers) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 4000);
+
+            const res = await fetch(provider.url, {
+                method: "GET",
+                signal: controller.signal
             });
 
-            return {
-                lat:pos.coords.latitude,
-                lon:pos.coords.longitude,
-                source:"GPS"
-            };
+            clearTimeout(timeout);
 
-        }catch(e){
-            console.warn("GPS failed:",e.message);
+            if (!res.ok) continue;
+
+            const data = await res.json();
+            const parsed = provider.parse(data);
+
+            if (parsed.lat && parsed.lon) {
+                return {
+                    ...parsed,
+                    source: provider.name.toUpperCase()
+                };
+            }
+
+        } catch (err) {
+            console.warn(`${provider.name} failed`);
         }
     }
 
-    // 2. Fallback IP API (secure)
-    try{
-        const r=await fetch("https://ipapi.co/json/");
-        if(!r.ok) throw new Error();
-        const g=await r.json();
-
-        return {
-            lat:g.latitude,
-            lon:g.longitude,
-            city:g.city,
-            isp:g.org,
-            source:"IP"
-        };
-    }catch{
-        return null;
-    }
+    return null;
 }
 
 // ---------------- MAIN AUDIT ----------------
