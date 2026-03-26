@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 Silent Data Audit</title>
+    <title>2026 Universal Device Audit</title>
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; }
         body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
         h1 { color: var(--accent); font-size: 1.5rem; margin-bottom: 5px; }
-        p.subtitle { color: #94a3b8; margin-bottom: 25px; font-size: 0.9rem; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
         .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #334155; }
-        .card h3 { margin: 0 0 10px 0; font-size: 1rem; color: var(--accent); border-bottom: 1px solid #334155; padding-bottom: 5px; }
+        .card h3 { margin: 0; font-size: 1rem; color: var(--accent); border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 10px; }
         .data-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
         .label { color: #94a3b8; }
         .value { color: #e2e8f0; font-family: monospace; text-align: right; word-break: break-all; margin-left: 10px; }
@@ -20,22 +19,19 @@
 </head>
 <body>
 
-    <h1>Silent Data Audit</h1>
-    <p class="subtitle">Data accessible programmatically <b>without</b> permission popups.</p>
+    <h1>Universal Silent Audit</h1>
 
-    <div class="grid" id="dashboard">
+    <div class="grid">
         <div class="card">
-            <h3>Physical Hardware & iPhone ID</h3>
+            <h3>Device Identification</h3>
             <div id="hardware-output"></div>
         </div>
-
         <div class="card">
-            <h3>Network & MSP Geolocation</h3>
+            <h3>Network & Location</h3>
             <div id="network-output"></div>
         </div>
-
         <div class="card">
-            <h3>Browser Identity</h3>
+            <h3>Raw Signals</h3>
             <div id="software-output"></div>
         </div>
     </div>
@@ -44,84 +40,69 @@
         const renderData = (id, label, value, isHighlight = false) => {
             const container = document.getElementById(id);
             const valClass = isHighlight ? 'value highlight' : 'value';
-            container.innerHTML += `
-                <div class="data-row">
-                    <span class="label">${label}</span>
-                    <span class="${valClass}">${value}</span>
-                </div>`;
+            container.innerHTML += `<div class="data-row"><span class="label">${label}</span><span class="${valClass}">${value}</span></div>`;
         };
 
-        async function audit() {
-            // 1. Hardware & iPhone Detection
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl');
-            const debugInfo = gl?.getExtension('WEBGL_debug_renderer_info');
-            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Restricted";
+        async function getDeviceModel() {
+            const ua = navigator.userAgent;
+            const platform = navigator.platform;
             
-            const width = screen.width;
-            const height = screen.height;
-            const dpr = window.devicePixelRatio;
-            
-            let iphoneModel = "Determining...";
-            const isApple = /iPhone|iPod|iPad/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-            
-            if (isApple) {
-                const sig = `${width}x${height}@${dpr}`;
-                const models = {
-                    "430x932@3": "iPhone 17 Pro Max / 16 Pro Max",
-                    "402x874@3": "iPhone 17 Pro / 16 Pro",
-                    "393x852@3": "iPhone 16 / 15 / 15 Pro",
-                    "428x926@3": "iPhone 14 Plus / 13 Pro Max",
-                    "390x844@3": "iPhone 14 / 13 / 13 Pro",
-                    "375x812@3": "iPhone 13 Mini / 12 Mini / X",
-                    "375x667@2": "iPhone SE / 8 / 7"
+            // 1. Check for High-Entropy Client Hints (New in Chrome/Android)
+            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+                const hints = await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion']);
+                if (hints.model) return `${navigator.userAgentData.platform} ${hints.model}`;
+            }
+
+            // 2. Android Specific Detection
+            if (/Android/i.test(ua)) {
+                const match = ua.match(/Android\s([^\s;]+)(?:.*Build\/([^\s;]+))?/);
+                const modelMatch = ua.match(/;\s([^;]+)\sBuild\//);
+                return modelMatch ? `Android (${modelMatch[1]})` : "Android Device";
+            }
+
+            // 3. iPhone Deep Logic (Stayed original)
+            if (/iPhone|iPod|iPad/.test(platform) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+                const sig = `${screen.width}x${screen.height}@${window.devicePixelRatio}`;
+                const appleModels = {
+                    "430x932@3": "iPhone 17/16 Pro Max",
+                    "402x874@3": "iPhone 17/16 Pro",
+                    "393x852@3": "iPhone 16/15 Pro",
+                    "390x844@3": "iPhone 14/13",
+                    "375x667@2": "iPhone SE/8"
                 };
-                iphoneModel = models[sig] || "Recent iPhone (Unclassified)";
-            } else {
-                iphoneModel = "Non-iOS Device";
+                return appleModels[sig] || "Recent Apple Device";
             }
 
-            renderData('hardware-output', 'Detected Model', iphoneModel, true);
-            renderData('hardware-output', 'CPU Cores', navigator.hardwareConcurrency || 'Unknown');
-            renderData('hardware-output', 'RAM (Est)', (navigator.deviceMemory || 'N/A') + ' GB');
-            renderData('hardware-output', 'GPU', gpu);
-            renderData('hardware-output', 'Screen', `${width}x${height} (@${dpr}x)`);
-
-            // 2. NEW MSP GEOLOCATION (Primary: ip-api.com, Fallback: country.is)
-            try {
-                // ip-api.com is very stable for 2026 silent requests
-                const geoRes = await fetch('http://ip-api.com/json/');
-                const geo = await geoRes.json();
-                
-                if (geo.status === "success") {
-                    renderData('network-output', 'Latitude', geo.lat, true);
-                    renderData('network-output', 'Longitude', geo.lon, true);
-                    renderData('network-output', 'City', geo.city);
-                    renderData('network-output', 'ISP', geo.isp);
-                } else {
-                    throw new Error("Primary API limited");
-                }
-            } catch (e) {
-                // Fallback to Country.is (Faster, but only gives country/IP)
-                try {
-                    const fallRes = await fetch('https://api.country.is/');
-                    const fallGeo = await fallRes.json();
-                    renderData('network-output', 'Latitude', 'Limited (City level only)', true);
-                    renderData('network-output', 'IP', fallGeo.ip);
-                    renderData('network-output', 'Country', fallGeo.country);
-                } catch (e2) {
-                    renderData('network-output', 'Location', 'All APIs Blocked/Offline');
-                }
-            }
-
-            renderData('network-output', 'Timezone', Intl.DateTimeFormat().resolvedOptions().timeZone);
-
-            // 3. Software & Identity
-            renderData('software-output', 'Platform', navigator.platform);
-            renderData('software-output', 'User Agent', navigator.userAgent);
+            // 4. Windows Detection
+            if (ua.indexOf("Windows NT 10.0") !== -1) return "Windows 10/11";
+            
+            return platform || "Unknown Device";
         }
 
-        audit();
+        async function runAudit() {
+            // Identify Device
+            const model = await getDeviceModel();
+            renderData('hardware-output', 'Specific Model', model, true);
+            renderData('hardware-output', 'CPU Cores', navigator.hardwareConcurrency);
+            renderData('hardware-output', 'RAM (Est)', (navigator.deviceMemory || 'N/A') + ' GB');
+
+            // Location API (Stable 2026 Provider)
+            try {
+                const geoRes = await fetch('http://ip-api.com/json/');
+                const geo = await geoRes.json();
+                renderData('network-output', 'Latitude', geo.lat, true);
+                renderData('network-output', 'Longitude', geo.lon, true);
+                renderData('network-output', 'City', geo.city);
+            } catch (e) {
+                renderData('network-output', 'Location', 'API Blocked');
+            }
+
+            // Raw Signals
+            renderData('software-output', 'Platform', navigator.platform);
+            renderData('software-output', 'Agent', navigator.userAgent);
+        }
+
+        runAudit();
     </script>
 </body>
 </html>
