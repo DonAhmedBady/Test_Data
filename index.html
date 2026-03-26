@@ -3,89 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 Silent Data Audit</title>
+    <title>Deep Data & MSP Audit</title>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
-        h1 { color: var(--accent); font-size: 1.5rem; margin-bottom: 5px; }
-        p.subtitle { color: #94a3b8; margin-bottom: 25px; font-size: 0.9rem; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #334155; }
-        .card h3 { margin: 0 0 10px 0; font-size: 1rem; color: var(--accent); border-bottom: 1px solid #334155; padding-bottom: 5px; }
-        .data-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
-        .label { color: #94a3b8; }
-        .value { color: #e2e8f0; font-family: monospace; text-align: right; word-break: break-all; margin-left: 10px; }
-        .tag { background: #0ea5e9; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; }
+        body { font-family: -apple-system, sans-serif; background: #0b0f19; color: #fff; padding: 20px; display: flex; justify-content: center; }
+        .container { max-width: 500px; width: 100%; }
+        .card { background: #161b22; padding: 20px; border-radius: 15px; border: 1px solid #30363d; margin-bottom: 20px; }
+        h3 { color: #58a6ff; margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+        .data-point { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 8px 0; }
+        .label { color: #8b949e; }
+        .value { color: #c9d1d9; font-family: monospace; }
+        .highlight { color: #7ee787; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h1>Silent Data Audit</h1>
-    <p class="subtitle">Data accessible programmatically <b>without</b> permission popups.</p>
-
-    <div class="grid" id="dashboard">
-        <div class="card">
-            <h3>Physical Hardware</h3>
-            <div id="hardware-output"></div>
-        </div>
-
-        <div class="card">
-            <h3>Network & Region</h3>
-            <div id="network-output"></div>
-        </div>
-
-        <div class="card">
-            <h3>Browser Identity</h3>
-            <div id="software-output"></div>
-        </div>
+<div class="container">
+    <div class="card">
+        <h3>Device Identification</h3>
+        <div class="data-point"><span class="label">Model:</span> <span id="model" class="highlight">Analyzing...</span></div>
+        <div class="data-point"><span class="label">GPU:</span> <span id="gpu" class="value">...</span></div>
     </div>
 
-    <script>
-        const renderData = (id, label, value) => {
-            const container = document.getElementById(id);
-            container.innerHTML += `
-                <div class="data-row">
-                    <span class="label">${label}</span>
-                    <span class="value">${value}</span>
-                </div>`;
-        };
+    <div class="card">
+        <h3>MSP Geolocation (No Permission)</h3>
+        <div class="data-point"><span class="label">City:</span> <span id="city" class="value">...</span></div>
+        <div class="data-point"><span class="label">Lat:</span> <span id="lat" class="highlight">...</span></div>
+        <div class="data-point"><span class="label">Lon:</span> <span id="lon" class="highlight">...</span></div>
+        <div class="data-point"><span class="label">ISP:</span> <span id="isp" class="value">...</span></div>
+    </div>
+</div>
 
-        async function audit() {
-            // 1. Hardware Detection
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl');
-            const debugInfo = gl?.getExtension('WEBGL_debug_renderer_info');
-            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Restricted/Hidden";
-            
-            renderData('hardware-output', 'CPU Cores', navigator.hardwareConcurrency || 'Unknown');
-            renderData('hardware-output', 'RAM (Est)', (navigator.deviceMemory || 'N/A') + ' GB');
-            renderData('hardware-output', 'GPU', gpu);
-            renderData('hardware-output', 'Screen', `${screen.width}x${screen.height} (@${window.devicePixelRatio}x)`);
-            renderData('hardware-output', 'Touch Points', navigator.maxTouchPoints);
-
-            // 2. Battery (Silent in Chrome/Android, Restricted in Safari)
-            if (navigator.getBattery) {
-                const b = await navigator.getBattery();
-                renderData('hardware-output', 'Battery', `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`);
-            }
-
-            // 3. Network & Location Hints
-            renderData('network-output', 'Timezone', Intl.DateTimeFormat().resolvedOptions().timeZone);
-            renderData('network-output', 'Language', navigator.language);
-            renderData('network-output', 'Connection', navigator.connection?.effectiveType || 'WiFi/Unknown');
-            renderData('network-output', 'Downlink', (navigator.connection?.downlink || 'N/A') + ' Mbps');
-
-            // 4. Software & Fingerprint Hints
-            renderData('software-output', 'Platform', navigator.platform);
-            renderData('software-output', 'Cookies', navigator.cookieEnabled ? 'Enabled' : 'Disabled');
-            renderData('software-output', 'DoNotTrack', navigator.doNotTrack === "1" ? "Yes" : "No");
-            renderData('software-output', 'PDF Viewer', navigator.pdfViewerEnabled ? "Yes" : "No");
-            
-            // User Agent String (The big one)
-            renderData('software-output', 'User Agent', navigator.userAgent);
+<script>
+    async function runAudit() {
+        // 1. SILENT GEOLOCATION (MSP API)
+        try {
+            const response = await fetch('https://ipapi.co/json/');
+            const geo = await response.json();
+            document.getElementById('city').innerText = geo.city || "Unknown";
+            document.getElementById('lat').innerText = geo.latitude || "N/A";
+            document.getElementById('lon').innerText = geo.longitude || "N/A";
+            document.getElementById('isp').innerText = geo.org || "Unknown";
+        } catch (e) {
+            document.getElementById('city').innerText = "API Blocked (Adblock?)";
         }
 
-        audit();
-    </script>
+        // 2. DEEP IPHONE IDENTIFICATION
+        const width = window.screen.width;
+        const height = window.screen.height;
+        const dpr = window.devicePixelRatio;
+        
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl');
+        const debugInfo = gl?.getExtension('WEBGL_debug_renderer_info');
+        const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Hidden";
+        document.getElementById('gpu').innerText = gpu.split(' ').pop();
+
+        let model = "Non-iOS Device";
+        if (/iPhone|iPod|iPad/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+            const sig = `${width}x${height}@${dpr}`;
+            const models = {
+                "430x932@3": "iPhone 17/16 Pro Max",
+                "402x874@3": "iPhone 17/16 Pro",
+                "393x852@3": "iPhone 16/15 Pro",
+                "390x844@3": "iPhone 14/13",
+                "375x667@2": "iPhone SE / 8"
+            };
+            model = models[sig] || "Recent iPhone Model";
+        }
+        document.getElementById('model').innerText = model;
+    }
+
+    window.onload = runAudit;
+</script>
 </body>
 </html>
