@@ -1,108 +1,186 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 Universal Device Audit</title>
-    <style>
-        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
-        h1 { color: var(--accent); font-size: 1.5rem; margin-bottom: 5px; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #334155; }
-        .card h3 { margin: 0; font-size: 1rem; color: var(--accent); border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 10px; }
-        .data-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
-        .label { color: #94a3b8; }
-        .value { color: #e2e8f0; font-family: monospace; text-align: right; word-break: break-all; margin-left: 10px; }
-        .highlight { color: #7ee787; font-weight: bold; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 Silent Data Audit</title>
+
+<style>
+:root { --bg:#0f172a; --card:#1e293b; --text:#f8fafc; --accent:#38bdf8; }
+body { font-family:system-ui,sans-serif; background:var(--bg); color:var(--text); padding:20px; line-height:1.5; }
+h1 { color:var(--accent); font-size:1.5rem; margin-bottom:5px; }
+.subtitle { color:#94a3b8; margin-bottom:25px; font-size:0.9rem; }
+.grid { display:grid; grid-template-columns:1fr; gap:15px; }
+.card { background:var(--card); padding:15px; border-radius:12px; border:1px solid #334155; }
+.card h3 { margin:0 0 10px; font-size:1rem; color:var(--accent); border-bottom:1px solid #334155; padding-bottom:5px; }
+.data-row { display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px; }
+.label { color:#94a3b8; }
+.value { color:#e2e8f0; font-family:monospace; text-align:right; word-break:break-all; margin-left:10px; }
+.highlight { color:#7ee787; font-weight:bold; }
+</style>
 </head>
+
 <body>
 
-    <h1>Universal Silent Audit</h1>
+<h1>Silent Data Audit</h1>
+<p class="subtitle">Data accessible programmatically (permission-aware + secure APIs).</p>
 
-    <div class="grid">
-        <div class="card">
-            <h3>Device Identification</h3>
-            <div id="hardware-output"></div>
-        </div>
-        <div class="card">
-            <h3>Network & Location</h3>
-            <div id="network-output"></div>
-        </div>
-        <div class="card">
-            <h3>Raw Signals</h3>
-            <div id="software-output"></div>
-        </div>
+<div class="grid">
+    <div class="card">
+        <h3>Physical Hardware</h3>
+        <div id="hardware-output"></div>
     </div>
 
-    <script>
-        const renderData = (id, label, value, isHighlight = false) => {
-            const container = document.getElementById(id);
-            const valClass = isHighlight ? 'value highlight' : 'value';
-            container.innerHTML += `<div class="data-row"><span class="label">${label}</span><span class="${valClass}">${value}</span></div>`;
+    <div class="card">
+        <h3>Network & Region</h3>
+        <div id="network-output"></div>
+    </div>
+
+    <div class="card">
+        <h3>Browser Identity</h3>
+        <div id="software-output"></div>
+    </div>
+</div>
+
+<script>
+// ---------------- UTIL ----------------
+const renderData = (id,label,value,highlight=false)=>{
+    const el=document.getElementById(id);
+    el.innerHTML+=`
+    <div class="data-row">
+        <span class="label">${label}</span>
+        <span class="value ${highlight?'highlight':''}">${value}</span>
+    </div>`;
+};
+
+// ---------------- DEVICE ID ----------------
+async function getDeviceIdentity(){
+    const ua=navigator.userAgent;
+    const platform=navigator.platform;
+
+    try{
+        if(navigator.userAgentData?.getHighEntropyValues){
+            const hints=await navigator.userAgentData.getHighEntropyValues(['model']);
+            if(hints.model) return hints.model;
+        }
+    }catch{}
+
+    if(/iPhone|iPad|iPod/.test(platform)||(platform==="MacIntel"&&navigator.maxTouchPoints>1)){
+        const sig=`${screen.width}x${screen.height}@${devicePixelRatio}`;
+        const map={
+            "430x932@3":"iPhone 16/17 Pro Max",
+            "402x874@3":"iPhone Pro",
+            "390x844@3":"iPhone 13/14",
+            "375x667@2":"iPhone SE"
         };
+        return map[sig]||"Apple Device";
+    }
 
-        async function getDeviceModel() {
-            const ua = navigator.userAgent;
-            const platform = navigator.platform;
-            
-            // 1. Check for High-Entropy Client Hints (New in Chrome/Android)
-            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-                const hints = await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion']);
-                if (hints.model) return `${navigator.userAgentData.platform} ${hints.model}`;
-            }
+    if(/Android/i.test(ua)) return "Android Device";
+    if(ua.includes("Windows NT 10.0")) return "Windows PC";
 
-            // 2. Android Specific Detection
-            if (/Android/i.test(ua)) {
-                const match = ua.match(/Android\s([^\s;]+)(?:.*Build\/([^\s;]+))?/);
-                const modelMatch = ua.match(/;\s([^;]+)\sBuild\//);
-                return modelMatch ? `Android (${modelMatch[1]})` : "Android Device";
-            }
+    return platform;
+}
 
-            // 3. iPhone Deep Logic (Stayed original)
-            if (/iPhone|iPod|iPad/.test(platform) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
-                const sig = `${screen.width}x${screen.height}@${window.devicePixelRatio}`;
-                const appleModels = {
-                    "430x932@3": "iPhone 17/16 Pro Max",
-                    "402x874@3": "iPhone 17/16 Pro",
-                    "393x852@3": "iPhone 16/15 Pro",
-                    "390x844@3": "iPhone 14/13",
-                    "375x667@2": "iPhone SE/8"
-                };
-                return appleModels[sig] || "Recent Apple Device";
-            }
+// ---------------- GEO LOCATION ----------------
+async function getLocation(){
 
-            // 4. Windows Detection
-            if (ua.indexOf("Windows NT 10.0") !== -1) return "Windows 10/11";
-            
-            return platform || "Unknown Device";
+    // 1. GPS (requires permission)
+    if("geolocation" in navigator){
+        try{
+            const pos=await new Promise((res,rej)=>{
+                navigator.geolocation.getCurrentPosition(res,rej,{
+                    enableHighAccuracy:true,
+                    timeout:5000,
+                    maximumAge:60000
+                });
+            });
+
+            return {
+                lat:pos.coords.latitude,
+                lon:pos.coords.longitude,
+                source:"GPS"
+            };
+
+        }catch(e){
+            console.warn("GPS failed:",e.message);
         }
+    }
 
-        async function runAudit() {
-            // Identify Device
-            const model = await getDeviceModel();
-            renderData('hardware-output', 'Specific Model', model, true);
-            renderData('hardware-output', 'CPU Cores', navigator.hardwareConcurrency);
-            renderData('hardware-output', 'RAM (Est)', (navigator.deviceMemory || 'N/A') + ' GB');
+    // 2. Fallback IP API (secure)
+    try{
+        const r=await fetch("https://ipapi.co/json/");
+        if(!r.ok) throw new Error();
+        const g=await r.json();
 
-            // Location API (Stable 2026 Provider)
-            try {
-                const geoRes = await fetch('http://ip-api.com/json/');
-                const geo = await geoRes.json();
-                renderData('network-output', 'Latitude', geo.lat, true);
-                renderData('network-output', 'Longitude', geo.lon, true);
-                renderData('network-output', 'City', geo.city);
-            } catch (e) {
-                renderData('network-output', 'Location', 'API Blocked');
-            }
+        return {
+            lat:g.latitude,
+            lon:g.longitude,
+            city:g.city,
+            isp:g.org,
+            source:"IP"
+        };
+    }catch{
+        return null;
+    }
+}
 
-            // Raw Signals
-            renderData('software-output', 'Platform', navigator.platform);
-            renderData('software-output', 'Agent', navigator.userAgent);
+// ---------------- MAIN AUDIT ----------------
+async function audit(){
+
+    // DEVICE
+    const device=await getDeviceIdentity();
+    renderData('hardware-output','Device',device,true);
+
+    // HARDWARE
+    const canvas=document.createElement('canvas');
+    const gl=canvas.getContext('webgl');
+    const debug=gl?.getExtension('WEBGL_debug_renderer_info');
+    const gpu=debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):"Hidden";
+
+    renderData('hardware-output','CPU Cores',navigator.hardwareConcurrency||'N/A');
+    renderData('hardware-output','RAM',(navigator.deviceMemory||'N/A')+' GB');
+    renderData('hardware-output','GPU',gpu);
+    renderData('hardware-output','Screen',`${screen.width}x${screen.height} @${devicePixelRatio}x`);
+    renderData('hardware-output','Touch',navigator.maxTouchPoints);
+
+    if(navigator.getBattery){
+        try{
+            const b=await navigator.getBattery();
+            renderData('hardware-output','Battery',`${Math.round(b.level*100)}% (${b.charging?'Charging':'Battery'})`);
+        }catch{}
+    }
+
+    // LOCATION
+    const loc=await getLocation();
+    if(loc){
+        renderData('network-output','Latitude',loc.lat,true);
+        renderData('network-output','Longitude',loc.lon,true);
+        renderData('network-output','Source',loc.source);
+
+        if(loc.city){
+            renderData('network-output','City/ISP',`${loc.city} (${loc.isp})`);
         }
+    }else{
+        renderData('network-output','Location','Unavailable');
+    }
 
-        runAudit();
-    </script>
+    // NETWORK
+    renderData('network-output','Timezone',Intl.DateTimeFormat().resolvedOptions().timeZone);
+    renderData('network-output','Language',navigator.language);
+    renderData('network-output','Connection',navigator.connection?.effectiveType||'Unknown');
+    renderData('network-output','Downlink',(navigator.connection?.downlink||'N/A')+' Mbps');
+
+    // SOFTWARE
+    renderData('software-output','Platform',navigator.platform);
+    renderData('software-output','Cookies',navigator.cookieEnabled?'Enabled':'Disabled');
+    renderData('software-output','DoNotTrack',navigator.doNotTrack==="1"?'Yes':'No');
+    renderData('software-output','PDF Viewer',navigator.pdfViewerEnabled?'Yes':'No');
+    renderData('software-output','User Agent',navigator.userAgent);
+}
+
+audit();
+</script>
+
 </body>
 </html>
